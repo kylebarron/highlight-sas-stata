@@ -6,6 +6,7 @@ import random
 from bs4 import BeautifulSoup
 from time import sleep
 from pathlib import Path
+from html2text import html2text
 
 def main():
     fn_names = get_fn_filenames()
@@ -21,8 +22,18 @@ def main():
         if res is not None:
             all_fns.extend(res)
 
+    # Combine list of dicts into a single dict
+    d = { k: v for d in all_fns for k, v in d.items() }
+
+    # Convert HTML to Markdown
+    d = {k: html2text(v) for k, v in d.items()}
+
+    # Undo Stata's line wrapping
+    regex = r'(?<!\n)\n(?!\n)'
+    d = {k: re.sub(regex, ' ', v) for k, v in d.items()}
+
     with open('functions.json', 'w') as f:
-        json.dump(all_fns, f, indent=4)
+        json.dump(d, f, indent=4)
 
 
 def get_fn_filenames(basepath='/home/kyle/local/stata/ado/base'):
@@ -89,6 +100,8 @@ def scrape_fn_page(url):
 
 def parse_function_html(html):
     soup = BeautifulSoup(html, 'lxml')
+    for a in soup.find_all('a', href=True):
+        a['href'] = 'https://www.stata.com' + a['href']
     ps = soup.find_all('p')
     fn_signature = ps[0].text.strip().split('\n')[0]
     fn_name = re.search(r'^(\w+)\(', fn_signature).group(1)
